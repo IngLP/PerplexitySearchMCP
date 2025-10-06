@@ -1,0 +1,36 @@
+[project]
+name = "perplexitysearchmcp"
+version = "0.1.0"
+description = "MCP server exposing a 'perplexity_search' tool using Perplexity Search API"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "mcp>=1.16.0",
+    "perplexityai>=0.13.0",
+    "structlog>=25.4.0",
+    "httpx>=0.28.1",
+    "pytest>=8.3.3",
+    "pytest-dotenv>=0.5.2",
+    "pre-commit>=3.7.0",
+]
+
+[project.scripts]
+perplexity-search-mcp = "search_mcp.server:main"
+
+[tool.mypy]
+ignore_missing_imports = true
+strict = false
+
+[tool.uv]
+package = true
+
+[tool.pytest.ini_options]
+env_files = [".env"]
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["search_mcp*"]
+exclude = ["tests*", "PRD*"]
