@@ -1,9 +1,7 @@
 from __future__ import annotations
 
 import os
-import re
 from collections.abc import Callable
-from collections.abc import Sequence
 from concurrent.futures import Future
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FuturesTimeout
@@ -30,13 +28,9 @@ class SearchResult(TypedDict, total=False):
     snippet: str
 
 
-Host = str
-
-
 _MIN_RESULTS = 1
 _MAX_RESULTS = 30
 _DEFAULT_RESULTS = 10
-_HOSTNAME_REGEX = re.compile(r"^[a-z0-9.-]+$")
 
 
 class _TimeoutController:
@@ -116,41 +110,6 @@ def _clamp_num_results(n: int | None) -> int:
     return v
 
 
-def _normalize_domains(domains: Sequence[str] | None) -> list[Host] | None:
-    if domains is None:
-        return None
-    if not isinstance(domains, (list, tuple)):
-        raise ValueError("search_domain_filter must be a list of domain strings")
-    if len(domains) == 0:
-        raise ValueError(
-            "search_domain_filter, when provided, must be a non-empty list"
-        )
-
-    normalized: list[Host] = []
-    seen: set[Host] = set()
-    for raw in domains:
-        if not isinstance(raw, str):
-            raise ValueError("search_domain_filter items must be strings")
-        d = raw.strip().lower()
-        if not d:
-            raise ValueError("search_domain_filter contains an empty domain")
-        # Reject schema/protocol or path hints
-        if any(x in d for x in ("://", "/", " ")):
-            raise ValueError(f"invalid domain (must be hostname only): {raw!r}")
-        if len(d) > 253:
-            raise ValueError(f"invalid domain (length > 253): {raw!r}")
-        if not _HOSTNAME_REGEX.match(d):
-            raise ValueError(
-                f"invalid domain (allowed: a-z, 0-9, dot, hyphen): {raw!r}"
-            )
-        if d not in seen:
-            seen.add(d)
-            normalized.append(d)
-    if not normalized:
-        raise ValueError("search_domain_filter normalization resulted in an empty list")
-    return normalized
-
-
 def _create_client() -> Any:
     # Perplexity client auto-reads PERPLEXITY_API_KEY from env if not passed explicitly
     from perplexity import Perplexity  # type: ignore
@@ -166,13 +125,8 @@ def _call_search(
     client: Any,
     query: str,
     max_results: int,
-    domain_filter: list[Host] | None,
 ) -> Any:
-    # The SDK shape is: client.search.create(query=..., max_results=..., search_domain_filter=...)
-    if domain_filter:
-        return client.search.create(
-            query=query, max_results=max_results, search_domain_filter=domain_filter
-        )
+    # API does not support domain filters; always call without it
     return client.search.create(query=query, max_results=max_results)
 
 
@@ -204,7 +158,6 @@ def _normalize_results(search_response: Any) -> list[SearchResult]:
 def search_perplexity(
     query: str,
     num_results: int | None = None,
-    search_domain_filter: Sequence[str] | None = None,
     *,
     _client_factory: Callable[[], Any] = _create_client,
     _timeout_seconds: float = 5.0,
@@ -214,7 +167,6 @@ def search_perplexity(
     Input validation:
     - query: non-empty after trimming, length ≤ 4096
     - num_results: clamped to [1, 30], default 10
-    - search_domain_filter: optional non-empty list of valid hostnames, duplicates removed
 
     Behavior:
     - Single request via SDK's client.search.create
@@ -223,12 +175,11 @@ def search_perplexity(
     """
     q = _validate_query(query)
     max_results = _clamp_num_results(num_results)
-    domains = _normalize_domains(search_domain_filter)
 
     client = _client_factory()
 
     def invoke() -> list[SearchResult]:
-        resp = _call_search(client, q, max_results, domains)
+        resp = _call_search(client, q, max_results)
         return _normalize_results(resp)
 
     controller = _TimeoutController(timeout_s=_timeout_seconds)

@@ -5,12 +5,12 @@ Last updated: 2025-10-06
 
 ## Vision
 
-Deliver a minimal, reliable MCP server exposing a single tool "perplexity_search" that returns structured web search results using the Perplexity Python SDK search.create, configured via the PERPLEXITY_API_KEY environment variable. The server emphasizes fast responses, safe defaults, and observability via structlog. It explicitly excludes any LLM/sonar endpoints and any pagination. It supports a num_results parameter with default 10 and maximum 30, and an optional domain filter to constrain sources. The query is a single string.
+Deliver a minimal, reliable MCP server exposing a single tool "perplexity_search" that returns structured web search results using the Perplexity Python SDK search.create, configured via the PERPLEXITY_API_KEY environment variable. The server emphasizes fast responses, safe defaults, and observability via structlog. It explicitly excludes any LLM/sonar endpoints and any pagination. It supports a num_results parameter with default 10 and maximum 30. The query is a single string.
 
 ## Key decisions agreed for Vision
 
 - Tool name: perplexity_search
-- Input shape: query (str); num_results (int, default 10, max 30); search_domain_filter (list of str, optional)
+- Input shape: query (str); num_results (int, default 10, max 30)
 - SDK call: client.search.create
 - Config: PERPLEXITY_API_KEY environment variable
 - Logging: structlog
@@ -24,7 +24,6 @@ Deliver a minimal, reliable MCP server exposing a single tool "perplexity_search
 - Inputs:
   - query: str (required)
   - num_results: int (default 10, max 30)
-  - search_domain_filter: list[str] (optional, include-only domains)
 - Output: structured list of results with: title, url, optional date, and always include last_update and snippet. Stable JSON shape documented in this PRD.
 - Configuration: PERPLEXITY_API_KEY environment variable (no other secret sources).
 - Observability: structlog with request_id, duration_ms, result_count, provider_status; never log secrets.
@@ -36,7 +35,7 @@ Deliver a minimal, reliable MCP server exposing a single tool "perplexity_search
 - Any LLM/sonar/generation endpoints; summarization; snippet generation.
 - Pagination or multi-query (no list[str] for query).
 - Source scraping or downloading content; only metadata/links.
-- Advanced filters (besides search_domain_filter) or ranking customization.
+- Advanced filters or ranking customization.
 - Caching, persistence, or background jobs.
 - Rollout/ops playbooks; containerization; CI/CD.
 
@@ -46,7 +45,6 @@ Deliver a minimal, reliable MCP server exposing a single tool "perplexity_search
 - Inputs:
   - query: str (required)
   - num_results: int (default 10; clamped to [1, 30])
-  - search_domain_filter: list[str] (optional, include-only domains)
 - Behavior:
   - No pagination.
   - Search executed via Perplexity Python SDK [python.client.search.create()](README.md:1); a single request returns up to num_results.
@@ -66,7 +64,6 @@ Deliver a minimal, reliable MCP server exposing a single tool "perplexity_search
 
 - query: str (required). Must be non-empty after trimming whitespace.
 - num_results: int (default 10; clamped to [1, 30]). Values \<1 become 1; values >30 become 30.
-- search_domain_filter: list[str] (optional). If provided, must be a non-empty list of non-empty domain strings (hostnames). Duplicates are ignored; schema/protocol not allowed.
 
 ### Behavior
 
@@ -74,7 +71,6 @@ Deliver a minimal, reliable MCP server exposing a single tool "perplexity_search
 - Search invocation: Call [python.client.search.create()](README.md:1) with:
   - query = query
   - max_results = num_results
-  - search_domain_filter = search_domain_filter (only if provided)
 - Timeout: Apply an overall request timeout of 5 seconds for the search call.
 - Retry: Perform 1 retry only on transient connection errors; no retry on authentication or validation errors.
 - Pagination: None. A single request returns up to num_results.
@@ -97,7 +93,7 @@ Deliver a minimal, reliable MCP server exposing a single tool "perplexity_search
 
 ### Logging (structlog)
 
-- Emit structured logs with fields: request_id, query (full string), domain_filter (full list), query_length, domain_filter_count, num_results, duration_ms, result_count, provider_status (string if available).
+- Emit structured logs with fields: request_id, query (full string), query_length, num_results, duration_ms, result_count, provider_status (string if available).
 - Never log secrets.
 
 ### Configuration
@@ -136,9 +132,9 @@ Execution and installation (command-launchable)
 Control flow (references to FR)
 
 1. Validate inputs (query non-empty; num_results clamped to 1–30; search_domain_filter when provided is non-empty list of non-empty domains).
-1. Initialize log context (request_id, query, domain_filter, query_length, num_results, domain_filter_count).
+1. Initialize log context (request_id, query, query_length, num_results).
 1. Build client with [python.Perplexity()](README.md:1) reading PERPLEXITY_API_KEY.
-1. Call [python.client.search.create()](README.md:1) with query, max_results, and search_domain_filter (if provided); 5s timeout; 1 retry on connection errors only.
+1. Call [python.client.search.create()](README.md:1) with query and max_results; 5s timeout; 1 retry on connection errors only.
 1. Return stable JSON: { results: [{ title, url, date?, last_update, snippet }] }.
 1. Raise exceptions per FR for invalid inputs, missing API key, and provider/network failures (no HTTP-style mappings).
 
@@ -164,7 +160,6 @@ Input validation
 
 - query: trim whitespace; must be non-empty; maximum length 4096 characters (longer inputs rejected).
 - num_results: clamp to [1, 30] (as defined in Scope/FR).
-- search_domain_filter: when provided, must be a non-empty list of ASCII hostnames (a–z, 0–9, dot, hyphen). Each item max length 253 characters; drop duplicates; reject invalid items.
 
 Data handling
 

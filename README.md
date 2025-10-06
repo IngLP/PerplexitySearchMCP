@@ -35,7 +35,6 @@ This config launches the server via uvx, pulling directly from the Git remote. S
 - Inputs:
   - `query`: str (required, non-empty after trim, max length 4096)
   - `num_results`: int (default 10, clamped to [1, 30])
-  - `search_domain_filter`: list[str] (optional, include-only domains; hostname only; duplicates removed)
 - Output: `{ "results": [ { "title": str, "url": str, "date": str?, "last_update": str, "snippet": str }, ... ] }`
 - Observability: structlog JSON/console logs with per-request context
 - Timeout and retry: 5s overall timeout; single retry on transient connection errors only
@@ -53,7 +52,7 @@ This config launches the server via uvx, pulling directly from the Git remote. S
 - Structured logging with structlog
 - Startup config chooses JSON by default; console when `LOG_FORMAT=console` or stdout is a TTY and `LOG_FORMAT` unset
 - Per-request fields:
-  - `request_id`, `query` (full string), `domain_filter` (full list), `query_length`, `domain_filter_count`, `num_results`, `result_count`, `duration_ms`, `provider_status`, `timeout_ms`
+  - `request_id`, `query` (full string), `query_length`, `num_results`, `result_count`, `duration_ms`, `provider_status`, `timeout_ms`
 - Never log secrets. Validation/auth errors log as warnings/errors with concise messages.
 
 ## Environment variables
@@ -90,7 +89,6 @@ uv run pre-commit run -a || uv run pre-commit run -a || uv run pre-commit run -a
 
 - No LLM/sonar chat completions in this server (out of scope)
 - No caching, persistence, or scraping
-- Inputs strictly validated; domain filters must be hostnames, ASCII `[a-z0-9.-]`
 - Output is stable: `title`, `url`, optional `date`, plus `last_update` and `snippet` for all results
 
 ## Security

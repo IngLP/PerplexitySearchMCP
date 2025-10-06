@@ -17,7 +17,9 @@ def test_real_perplexity_search_smoke() -> None:
     - Uses num_results=1 to minimize cost/time.
     - Ensures call succeeds and returns the documented shape when results exist.
     """
-    results = search_perplexity("latest AI developments 2024", num_results=1, _timeout_seconds=5.0)
+    results = search_perplexity(
+        "latest AI developments 2024", num_results=1, _timeout_seconds=5.0
+    )
     assert isinstance(results, list)
     if results:
         first = results[0]

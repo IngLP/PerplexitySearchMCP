@@ -1,6 +1,5 @@
-import os
 import time
-from typing import Any, List, Optional
+from typing import Any
 
 import pytest
 
@@ -8,7 +7,13 @@ from search_mcp.perplexity_adapter import search_perplexity
 
 
 class _FakeResult:
-    def __init__(self, title: str, url: str, date: Optional[str] = None, snippet: Optional[str] = None) -> None:
+    def __init__(
+        self,
+        title: str,
+        url: str,
+        date: str | None = None,
+        snippet: str | None = None,
+    ) -> None:
         self.title = title
         self.url = url
         self.date = date
@@ -26,16 +31,14 @@ class _FakeClient:
             def __init__(self, outer: "_FakeClient") -> None:
                 self._outer = outer
 
-            def create(self, *, query: str, max_results: int, search_domain_filter: list[str] | None = None) -> Any:
+            def create(self, *, query: str, max_results: int) -> Any:
                 self._outer.last_query = query
                 self._outer.last_max_results = max_results
-                self._outer.last_filter = search_domain_filter
                 return response
 
         self.search = _Search(self)
         self.last_query: str | None = None
         self.last_max_results: int | None = None
-        self.last_filter: list[str] | None = None
 
 
 def _factory_from_client(c: Any):
@@ -77,22 +80,7 @@ def test_num_results_default_and_clamping() -> None:
     assert client.last_max_results == 30
 
 
-def test_domain_filter_normalization_and_duplicates() -> None:
-    response = _FakeResponse([_FakeResult("t", "https://a")])
-    client = _FakeClient(response)
-
-    out = search_perplexity(
-        "hello",
-        5,
-        ["Example.com", "example.com", "sub.domain.com"],
-        _client_factory=_factory_from_client(client),
-    )
-    # duplicates collapsed and normalized to lowercase
-    assert client.last_filter == ["example.com", "sub.domain.com"]
-
-    # invalid hostname with path should raise
-    with pytest.raises(ValueError):
-        search_perplexity("hello", 5, ["good.com", "bad.com/path"], _client_factory=_factory_from_client(client))
+# Domain filter support removed — tests related to it have been deleted.
 
 
 def test_retry_on_transient_connect_error(monkeypatch) -> None:
@@ -106,11 +94,14 @@ def test_retry_on_transient_connect_error(monkeypatch) -> None:
                 def __init__(self, outer: "_FlakyClient") -> None:
                     self._outer = outer
 
-                def create(self, *, query: str, max_results: int, search_domain_filter: list[str] | None = None):
+                def create(self, *, query: str, max_results: int):
                     self._outer.calls += 1
                     if self._outer.calls == 1:
                         # First call simulates transient connection error
-                        raise httpx.ConnectError("boom", request=httpx.Request("GET", "https://api.perplexity.ai"))
+                        raise httpx.ConnectError(
+                            "boom",
+                            request=httpx.Request("GET", "https://api.perplexity.ai"),
+                        )
                     return _FakeResponse([_FakeResult("ok", "https://x")])
 
             self.search = _Search(self)
@@ -125,7 +116,7 @@ def test_timeout_errors_out_fast() -> None:
     class _SlowClient:
         class _Search:
             @staticmethod
-            def create(*, query: str, max_results: int, search_domain_filter: list[str] | None = None):
+            def create(*, query: str, max_results: int):
                 time.sleep(0.2)
                 return _FakeResponse([_FakeResult("late", "https://z")])
 
@@ -133,7 +124,9 @@ def test_timeout_errors_out_fast() -> None:
             self.search = _SlowClient._Search()
 
     with pytest.raises(TimeoutError):
-        search_perplexity("slow", 3, _client_factory=lambda: _SlowClient(), _timeout_seconds=0.05)
+        search_perplexity(
+            "slow", 3, _client_factory=lambda: _SlowClient(), _timeout_seconds=0.05
+        )
 
 
 def test_output_shape_normalization() -> None:
@@ -144,8 +137,16 @@ def test_output_shape_normalization() -> None:
         ]
     )
     client = _FakeClient(response)
-    out = search_perplexity("normalize", 2, _client_factory=_factory_from_client(client))
+    out = search_perplexity(
+        "normalize", 2, _client_factory=_factory_from_client(client)
+    )
     assert out == [
-        {"title": "Title A", "url": "https://a", "date": "2024-01-01", "last_update": "2024-01-01", "snippet": "Alpha snippet"},
+        {
+            "title": "Title A",
+            "url": "https://a",
+            "date": "2024-01-01",
+            "last_update": "2024-01-01",
+            "snippet": "Alpha snippet",
+        },
         {"title": "Title B", "url": "https://b", "last_update": "", "snippet": ""},
     ]

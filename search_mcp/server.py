@@ -5,7 +5,6 @@ import os
 import sys
 import time
 import uuid
-from typing import Any, Dict, List, Optional
 
 import structlog
 from mcp.server.fastmcp import FastMCP
@@ -80,33 +79,27 @@ mcp = FastMCP("Perplexity Search MCP")
 def perplexity_search(
     query: str,
     num_results: int = 10,
-    search_domain_filter: Optional[list[str]] = None,
 ) -> dict:
     """Run a Perplexity Search and return structured results.
- 
-     Inputs:
-       - query: str (required)
-       - num_results: int (default 10, clamped to [1,30])
-       - search_domain_filter: list[str] (optional, include-only domains)
- 
-     Output:
-       - { "results": [ { "title": str, "url": str, "date": str?, "last_update": str, "snippet": str }, ... ] }
-     """
+
+    Inputs:
+      - query: str (required)
+      - num_results: int (default 10, clamped to [1,30])
+
+    Output:
+      - { "results": [ { "title": str, "url": str, "date": str?, "last_update": str, "snippet": str }, ... ] }
+    """
     logger = structlog.get_logger()
 
     request_id = uuid.uuid4().hex
     start = time.perf_counter()
 
     query_length = len(query) if isinstance(query, str) else 0
-    domain_filter_count = len(search_domain_filter) if isinstance(search_domain_filter, list) else 0
 
-    # Per user's direction: log full query and full domain_filter
     base_log = {
         "request_id": request_id,
         "query": query,
-        "domain_filter": search_domain_filter,
         "query_length": query_length,
-        "domain_filter_count": domain_filter_count,
         "num_results": num_results,
         "timeout_ms": 5000,
     }
@@ -117,7 +110,6 @@ def perplexity_search(
         results = search_perplexity(
             query=query,
             num_results=num_results,
-            search_domain_filter=search_domain_filter,
         )
         duration_ms = int((time.perf_counter() - start) * 1000)
         logger.info(
@@ -128,7 +120,7 @@ def perplexity_search(
             provider_status="ok",
         )
         return {"results": results}
-    except ValueError as e:
+    except ValueError:
         duration_ms = int((time.perf_counter() - start) * 1000)
         logger.warning(
             "perplexity_search.invalid_input",
@@ -138,7 +130,7 @@ def perplexity_search(
             exc_info=True,
         )
         raise
-    except (EnvironmentError, RuntimeError) as e:
+    except (OSError, RuntimeError):
         duration_ms = int((time.perf_counter() - start) * 1000)
         logger.error(
             "perplexity_search.auth_error",
