@@ -36,13 +36,12 @@ def configure_logging() -> None:
     elif log_format == "json":
         use_console = False
     else:
-        # Default: console if stdout is a TTY, otherwise JSON
-        use_console = sys.stdout.isatty()
+        use_console = True
 
     level = _parse_log_level(os.getenv("LOG_LEVEL"))
 
     # Configure stdlib root logger
-    handler = logging.StreamHandler(sys.stdout)
+    handler = logging.StreamHandler(sys.stderr)
     handler.setLevel(level)
     logging.basicConfig(level=level, handlers=[handler], force=True)
 

@@ -67,7 +67,7 @@ def test_logging_includes_requested_fields(monkeypatch, capsys) -> None:
     )
     assert isinstance(out, dict) and "results" in out
 
-    captured = capsys.readouterr().out
+    captured = capsys.readouterr().err
     # Start log should contain our fields
     assert "perplexity_search.start" in captured
     assert "observability test" in captured  # full query present
